@@ -40,9 +40,6 @@ def get_epivars(df, w):
     df['ibar'].iloc[:5] = np.mean(df['percent_ill'].iloc[:5])
 
     # R0 is smoothed data to control volatility that impacts predictions
-    # NB - these is for feature generation, we restrict ourselves when forecasting
-    # to not peak into the future
-    # TODO - would it make sense to use gaussian windows here for smoothing, to improve temporal resolution?
     df['R'] = (df['percent_ill'].shift(-1).rolling(30).mean(center=True) /
                df['ibar'].rolling(30).mean(center=True))
     df['R'].fillna(df['R'].mean(), inplace=True)
@@ -50,7 +47,7 @@ def get_epivars(df, w):
     return df
 
 
-def r0_forecast(df, w, horizon):
+def r0_forecast(df, w, horizon, social_mod=None):
     ''' Forward propogated forecast using the daily mean
     reproductive number of a region. Current ibar is multiplied
     by mean daily R0 to get ILI at the next time point and
@@ -62,12 +59,16 @@ def r0_forecast(df, w, horizon):
     incubation_days = len(w)
 
     # Get the mean daily R
-    # TODO - address leap year
-    # TODO - lower/upper bounds from here by using additional qtile?
     avgR = (df.groupby('doy')['R']
             .median().reset_index()
             .rename(columns={'R': 'avg_r'})
             )
+    if social_mod is not None:
+        ''' Major social distancing begins with school closures on
+        March 16, 2020 (DOY 76). This is hardcoded for Science example
+        in Brooklyn, NY '''
+        avgR['avg_r'] = np.where(avgR['doy'] >= 76, avgR['avg_r']*social_mod,
+                                 avgR['avg_r'])
 
     # Prepare timeseries df for prediction
     pred_dates = pd.date_range(cutoff - dt.timedelta(4),
@@ -91,7 +92,7 @@ def r0_forecast(df, w, horizon):
     return forc_df[['ds', 'cutoff', 'percent_ill']]
 
 
-def anomaly_wrapper(df, run_dates, horizon, simulations=1):
+def anomaly_wrapper(df, run_dates, horizon, simulations=1, social_mod=None):
     ''' Following the same format as local effects forecast,
     we make forecasts across a number of regions on a given day
     and then use this output to define an expected influenza range.
@@ -123,14 +124,16 @@ def anomaly_wrapper(df, run_dates, horizon, simulations=1):
                 sim_df = forc_df.copy()
 
                 if i == 0:
-                    sim_df = r0_forecast(sim_df, w, horizon=horizon)
+                    sim_df = r0_forecast(sim_df, w, horizon=horizon,
+                                         social_mod=social_mod)
                 else:
                     # for all additional forecasts add ili-based error
                     sim_df['percent_ill'] = (
                         sim_df['percent_ill'] +
                         np.random.normal(loc=0, scale=error_scale)
                         )
-                    sim_df = r0_forecast(sim_df, w, horizon=horizon)
+                    sim_df = r0_forecast(sim_df, w, horizon=horizon,
+                                         social_mod=social_mod)
 
                 sim_df['run'] = i
                 forc_list.append(sim_df)
