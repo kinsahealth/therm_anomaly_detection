@@ -40,8 +40,8 @@ def get_epivars(df, w):
     df['ibar'].iloc[:5] = np.mean(df['percent_ill'].iloc[:5])
 
     # R0 is smoothed data to control volatility that impacts predictions
-    df['R'] = (df['percent_ill'].shift(-1).rolling(30).mean(center=True) /
-               df['ibar'].rolling(30).mean(center=True))
+    df['R'] = (df['percent_ill'].shift(-1).rolling(30, center=True).mean() /
+               df['ibar'].rolling(30, center=True).mean())
     df['R'].fillna(df['R'].mean(), inplace=True)
 
     return df
@@ -111,7 +111,7 @@ def anomaly_wrapper(df, run_dates, horizon, simulations=1, social_mod=None):
 
             # Get in-season error rate for simulations
             forc_df['error'] = (forc_df['percent_ill']
-                                - forc_df['percent_ill'].rolling(30).mean(center=True))
+                                - forc_df['percent_ill'].rolling(30, center=True).mean())
             error_scale = np.std(forc_df.error)
 
             # No-peaking in backfill, 30day rolling R leaks data
