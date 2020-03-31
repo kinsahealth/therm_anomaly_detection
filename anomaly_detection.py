@@ -115,7 +115,6 @@ def anomaly_wrapper(df, run_dates, horizon, simulations=1, social_mod=None):
             error_scale = np.std(forc_df.error)
 
             # No-peaking in backfill, 30day rolling R leaks data
-            # THIS IS REALLY IMPORTANT
             forc_df['R'].iloc[-15:] = np.nan
 
             # Jitter the starting point to estimate uncertainty
